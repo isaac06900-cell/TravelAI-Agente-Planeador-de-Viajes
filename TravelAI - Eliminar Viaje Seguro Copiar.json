@@ -1,0 +1,196 @@
+{
+  "name": "TravelAI - Eliminar Viaje Seguro Copiar",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "id_viaje"
+            },
+            {
+              "name": "confirmado",
+              "type": "boolean"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "a9624dc5-305a-4dd8-a6fc-d0ef66cf3298",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1zjeUgm7Ir7BYn1iz-Kox1nIZiFbWzapyAhjxkJrml1k",
+          "mode": "list",
+          "cachedResultName": "ravelAI - Viajes Guardados",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1zjeUgm7Ir7BYn1iz-Kox1nIZiFbWzapyAhjxkJrml1k/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1zjeUgm7Ir7BYn1iz-Kox1nIZiFbWzapyAhjxkJrml1k/edit#gid=0"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "id_viaje",
+              "lookupValue": "={{ $json.id_viaje }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        224,
+        0
+      ],
+      "id": "76133f3f-0fc7-4b08-8545-fded3f4f8c06",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "wnRHBwjaXYa52yQr",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "documentId": {
+          "__rl": true,
+          "value": "1zjeUgm7Ir7BYn1iz-Kox1nIZiFbWzapyAhjxkJrml1k",
+          "mode": "list",
+          "cachedResultName": "ravelAI - Viajes Guardados",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1zjeUgm7Ir7BYn1iz-Kox1nIZiFbWzapyAhjxkJrml1k/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1zjeUgm7Ir7BYn1iz-Kox1nIZiFbWzapyAhjxkJrml1k/edit#gid=0"
+        },
+        "startIndex": "={{ $json.row_number }}\n"
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        672,
+        0
+      ],
+      "id": "9efeae89-e0f4-4d2a-a668-52569cf97a85",
+      "name": "Delete rows or columns from sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "wnRHBwjaXYa52yQr",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "49c19c5e-ca74-40f5-9120-c517ec59f12e",
+              "leftValue": "={{ $('When Executed by Another Workflow').first().json.confirmado }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": "",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        448,
+        0
+      ],
+      "id": "0710ff08-53b2-4e63-b63a-120f9dba81ae",
+      "name": "If"
+    }
+  ],
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "id_viaje": "896",
+          "confirmado": false
+        }
+      }
+    ]
+  },
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Delete rows or columns from sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "1cbf7d25-ed96-4f92-ab44-0ec0495a8b17",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8467c5853b6f116bda03b4e342f337e674be8b67e94abea7c4391dd1dc207efb"
+  },
+  "nodeGroups": [],
+  "id": "TciU3AAiGw2Y83uc",
+  "tags": []
+}

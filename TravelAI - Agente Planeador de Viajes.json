@@ -1,0 +1,671 @@
+{
+  "name": "TravelAI - Agente Planeador de Viajes",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -240,
+        64
+      ],
+      "id": "422d5c46-75b9-4692-8908-1b497b46c4ad",
+      "name": "When chat message received",
+      "webhookId": "6c604024-aeb0-4d82-8b8b-4536bde1dc7e"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "# PLANIFICACIÓN DE ITINERARIOS\n\nCuando el usuario solicite organizar un viaje, identifica el destino, fechas, número de viajeros, presupuesto y preferencias.\n\nSi falta información importante, pregunta al usuario antes de generar el itinerario.\n\nOrganiza el viaje por días e incluye:\n- Actividades por la mañana, tarde y noche.\n- Lugares recomendados para visitar.\n- Presupuesto estimado de transporte, comida, hospedaje y actividades.\n- Consejos prácticos para el viajero.\n- Recomendaciones relacionadas con el clima cuando se disponga de información meteorológica.\n\nNo inventes precios exactos ni disponibilidad de hoteles, vuelos o actividades. Identifica los costos como estimaciones cuando no estén verificados.\n\nSi el usuario solicita guardar su itinerario, utiliza la herramienta de almacenamiento cuando esté disponible. No confirmes que se guardó hasta que la herramienta termine correctamente.\n\n# MODIFICACIÓN DE VIAJES\n\nCuando el usuario solicite cambiar el presupuesto de un viaje:\n\n1. Utiliza consultar_viajes para obtener los registros reales de Google Sheets.\n2. Identifica el viaje correcto mediante su destino y su id_viaje.\n3. Si existen varios viajes coincidentes, pregunta cuál desea modificar.\n4. Indica el presupuesto actual y el nuevo presupuesto.\n5. Solicita confirmación explícita antes de actualizar.\n6. Una vez confirmada la modificación, utiliza modificar_viaje con el id_viaje exacto y el nuevo presupuesto numérico.\n7. No cambies otros campos ni inventes identificadores.\n8. Confirma el éxito únicamente cuando Google Sheets devuelva una actualización exitosa.\n9. Si el usuario solicita modificar otros campos, explica que por ahora solamente está habilitada la modificación del presupuesto.\n\n# ELIMINACIÓN SEGURA DE VIAJES\n\nCuando el usuario solicite eliminar un viaje guardado:\n\n1. Utiliza consultar_viajes para obtener los registros reales de Google Sheets.\n\n2. Identifica el viaje correcto mediante su destino y su id_viaje. Nunca inventes identificadores.\n\n3. Si existen varios viajes coincidentes, pregunta cuál desea eliminar.\n\n4. Antes de eliminar, informa al usuario el destino, el ID y las fechas del viaje seleccionado.\n\n5. Solicita confirmación explícita con el siguiente mensaje:\n\n\"¿Estás seguro de que deseas eliminar el viaje a [destino] con ID [id_viaje]? Esta acción es permanente y no se puede deshacer. Responde SÍ para confirmar o NO para cancelar\".\n\n6. No ejecutes eliminar_viaje_seguro mientras esperas la confirmación.\n\n7. Si el usuario responde NO o cancela la solicitud, no elimines ningún registro.\n\n8. Si el usuario confirma explícitamente la eliminación del viaje identificado, solicita la ejecución de eliminar_viaje_seguro utilizando:\n   - id_viaje: identificador exacto del viaje.\n   - confirmado: true.\n\n9. Si no existe confirmación explícita, no solicites la eliminación.\n\n10. Nunca interpretes la solicitud inicial de eliminar como una confirmación.\n\n11. No elimines viajes diferentes al que el usuario seleccionó.\n\n12. No afirmes que un viaje fue eliminado hasta recibir un resultado exitoso de Google Sheets.\n\n13. Si ocurre un error, informa al usuario que no se pudo completar la eliminación.\n\n# REGLAS GENERALES\n\n- Utiliza siempre información real de las herramientas disponibles.\n- No inventes viajes, identificadores, presupuestos ni resultados de operaciones.\n- Mantén una conversación natural, clara y amable.\n- Cuando una operación modifique o elimine información, solicita confirmación explícita.\n- No afirmes que una operación fue exitosa sin verificar el resultado.\n- Si el usuario cancela una operación, respeta su decisión."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        208,
+        -128
+      ],
+      "id": "e8dd34c1-6bf7-4d4b-a9ba-65f106d5e721",
+      "name": "AI Agent",
+      "retryOnFail": false,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash-lite",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        32,
+        160
+      ],
+      "id": "9fa68492-1b6f-48bf-a1fd-5eea3a60bc9a",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "IOGndHaQnROvdVZl",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        176,
+        192
+      ],
+      "id": "2fcf9e77-d5b4-4c6e-8d52-246f386de92e",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Consulta el clima actual y el pronóstico de los próximos 3 días de cualquier ciudad mediante Open-Meteo. Antes de consultar el clima, utiliza buscar_destino para obtener las coordenadas geográficas correctas. Usa esas coordenadas en los parámetros latitude y longitude. Nunca inventes datos meteorológicos.",
+        "url": "https://api.open-meteo.com/v1/forecast",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "latitude",
+              "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('parameters0_Value', `Latitud numérica obtenida de buscar_destino para la ciudad solicitada.`, 'string') }}"
+            },
+            {
+              "name": "longitude",
+              "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('parameters1_Value', `Longitud numérica obtenida de buscar_destino para la ciudad solicitada.`, 'string') }}"
+            },
+            {
+              "name": "current",
+              "value": "temperature_2m,relative_humidity_2m,precipitation,weather_code"
+            },
+            {
+              "name": "daily",
+              "value": "temperature_2m_max,temperature_2m_min,precipitation_probability_max"
+            },
+            {
+              "name": "timezone",
+              "value": "auto"
+            },
+            {
+              "name": "forecast_days",
+              "value": "3"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.5,
+      "position": [
+        336,
+        208
+      ],
+      "id": "ecb15166-f56b-4285-a968-ebe2b61b0b10",
+      "name": "consultar_clima"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Busca las coordenadas geográficas de una ciudad utilizando Open-Meteo. Úsala antes de consultar el clima de un destino.",
+        "url": "https://geocoding-api.open-meteo.com/v1/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "name",
+              "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('parameters0_Value', `Nombre de la ciudad o destino turístico que el usuario quiere consultar.`, 'string') }}"
+            },
+            {
+              "name": "count",
+              "value": "5"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.5,
+      "position": [
+        608,
+        -256
+      ],
+      "id": "36762a24-8088-4a99-acdf-2b81d9a338c1",
+      "name": "buscar_destino"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Consulta tipos de cambio para convertir monedas durante la planificación de viajes.",
+        "url": "https://open.er-api.com/v6/latest/MXN",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.5,
+      "position": [
+        656,
+        -128
+      ],
+      "id": "e445325f-9023-450c-91e7-6e23bfd09afa",
+      "name": "convertir_divisas"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Guarda en Google Sheets los viajes planificados por TravelAI. Utiliza esta herramienta cuando el usuario solicite guardar su viaje. Registra el destino, fechas, personas, presupuesto, moneda, preferencias y el itinerario completo. No inventes datos faltantes; solicita los necesarios. Confirma que el viaje fue guardado únicamente cuando la herramienta termine correctamente.",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1zjeUgm7Ir7BYn1iz-Kox1nIZiFbWzapyAhjxkJrml1k",
+          "mode": "list",
+          "cachedResultName": "ravelAI - Viajes Guardados",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1zjeUgm7Ir7BYn1iz-Kox1nIZiFbWzapyAhjxkJrml1k/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1zjeUgm7Ir7BYn1iz-Kox1nIZiFbWzapyAhjxkJrml1k/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id_viaje": "={{ $execution.id }}",
+            "fecha_registro": "={{ $now.toFormat('yyyy-MM-dd') }}",
+            "destino": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('destino', `Nombre real de la ciudad que el usuario desea visitar.`, 'string') }}",
+            "fecha_inicio": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('fecha_inicio', `Fecha real de inicio del viaje en formato YYYY-MM-DD.`, 'string') }}",
+            "fecha_fin": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('fecha_fin', `Fecha real de finalización del viaje en formato YYYY-MM-DD.`, 'string') }}",
+            "personas": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('personas', `Número de personas que viajarán.`, 'string') }}",
+            "presupuesto": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('presupuesto', `Cantidad numérica del presupuesto total.`, 'string') }}",
+            "moneda": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('moneda', `Moneda del presupuesto, por ejemplo MXN.`, 'string') }}",
+            "preferencias": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('preferencias', `Gustos y actividades preferidas del viajero.`, 'string') }}",
+            "itinerario": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('itinerario', `Plan completo del viaje, organizado por días.`, 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "id_viaje",
+              "displayName": "id_viaje",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fecha_registro",
+              "displayName": "fecha_registro",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "destino",
+              "displayName": "destino",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fecha_inicio",
+              "displayName": "fecha_inicio",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fecha_fin",
+              "displayName": "fecha_fin",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "personas",
+              "displayName": "personas",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "presupuesto",
+              "displayName": "presupuesto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "moneda",
+              "displayName": "moneda",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "preferencias",
+              "displayName": "preferencias",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "itinerario",
+              "displayName": "itinerario",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        768,
+        160
+      ],
+      "id": "b71a945d-5458-4042-a654-f2b55f78ba45",
+      "name": "Append row in sheet in Google Sheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "wnRHBwjaXYa52yQr",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Consulta los viajes previamente guardados en Google Sheets. Utiliza esta herramienta cuando el usuario solicite ver sus viajes, itinerarios anteriores o información de una reserva guardada.",
+        "documentId": {
+          "__rl": true,
+          "value": "1zjeUgm7Ir7BYn1iz-Kox1nIZiFbWzapyAhjxkJrml1k",
+          "mode": "list",
+          "cachedResultName": "ravelAI - Viajes Guardados",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1zjeUgm7Ir7BYn1iz-Kox1nIZiFbWzapyAhjxkJrml1k/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1zjeUgm7Ir7BYn1iz-Kox1nIZiFbWzapyAhjxkJrml1k/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        656,
+        208
+      ],
+      "id": "93b06fe9-1a3e-4442-bc14-c10401c01e9c",
+      "name": "consultar_viajes",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "wnRHBwjaXYa52yQr",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1zjeUgm7Ir7BYn1iz-Kox1nIZiFbWzapyAhjxkJrml1k",
+          "mode": "list",
+          "cachedResultName": "ravelAI - Viajes Guardados",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1zjeUgm7Ir7BYn1iz-Kox1nIZiFbWzapyAhjxkJrml1k/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1zjeUgm7Ir7BYn1iz-Kox1nIZiFbWzapyAhjxkJrml1k/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id_viaje": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('id_viaje__using_to_match_', `ID exacto del viaje que se modificará. Debe obtenerse previamente de consultar_viajes. Nunca inventar el ID.`, 'string') }}",
+            "presupuesto": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('presupuesto', `Nuevo presupuesto numérico solicitado por el usuario. No incluir símbolos de moneda ni separadores de miles.`, 'string') }}"
+          },
+          "matchingColumns": [
+            "id_viaje"
+          ],
+          "schema": [
+            {
+              "id": "id_viaje",
+              "displayName": "id_viaje",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fecha_registro",
+              "displayName": "fecha_registro",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "destino",
+              "displayName": "destino",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "fecha_inicio",
+              "displayName": "fecha_inicio",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "fecha_fin",
+              "displayName": "fecha_fin",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "personas",
+              "displayName": "personas",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "presupuesto",
+              "displayName": "presupuesto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "moneda",
+              "displayName": "moneda",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "preferencias",
+              "displayName": "preferencias",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "itinerario",
+              "displayName": "itinerario",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        512,
+        224
+      ],
+      "id": "bc09cb22-5a3f-45fc-856d-57c6fa8beecb",
+      "name": "modificar_viaje",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "wnRHBwjaXYa52yQr",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "Elimina un viaje guardado solamente después de recibir\nuna confirmación explícita del usuario para ese viaje.\nNunca interpretes la solicitud inicial como confirmación.\nPrimero pregunta al usuario y espera su respuesta.",
+        "workflowId": {
+          "__rl": true,
+          "value": "TciU3AAiGw2Y83uc",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/TciU3AAiGw2Y83uc",
+          "cachedResultName": "TravelAI - Eliminar Viaje Seguro Copiar"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "confirmado": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('confirmado', `Valor booleano. Solo debe ser true cuando el usuario haya confirmado explícitamente que desea eliminar ese viaje específico. Si no ha confirmado, debe ser false.`, 'boolean') }}",
+            "id_viaje": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('id_viaje', `ID único del viaje que el usuario desea eliminar.`, 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "id_viaje",
+              "displayName": "id_viaje",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "confirmado",
+              "displayName": "confirmado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        992,
+        128
+      ],
+      "id": "e207d3f0-8213-485e-b8ca-b0419e7472fd",
+      "name": "eliminar_viaje_seguro"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "consultar_clima": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "buscar_destino": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "convertir_divisas": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet in Google Sheets": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "consultar_viajes": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "modificar_viaje": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "eliminar_viaje_seguro": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "976204b7-1117-4587-a222-98b783dcf3dc",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8467c5853b6f116bda03b4e342f337e674be8b67e94abea7c4391dd1dc207efb"
+  },
+  "nodeGroups": [],
+  "id": "iGpJCP5WhSxTUDOh",
+  "tags": []
+}
