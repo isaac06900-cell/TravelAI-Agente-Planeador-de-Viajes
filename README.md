@@ -21,9 +21,6 @@ Durante las pruebas se presentaron errores HTTP 503 de Google Gemini por alta de
 Un registro se guardó correctamente aunque la respuesta final del agente falló.
 Se recomienda verificar registros antes de repetir operaciones de escritura.
 
-## Integrantes
-Pendiente de completar: nombres, matrículas y roles.
-
 ## Seguridad
 No incluir API keys, tokens ni contraseñas en los archivos de entrega.
 Revisar el JSON exportado antes de compartirlo.
@@ -31,13 +28,13 @@ Revisar el JSON exportado antes de compartirlo.
 
 | Integrante | Matrícula | Rol |
 |---|---|---|
-| Isaac Jasiel Herrera Avila | 24040275 | Líder técnico, arquitecto y desarrollador principal del agente de IA |
+| Isaac Jasiel Herrera Avila | 24040275 | Técnico, arquitecto y desarrollador del agente de IA |
 | Andrew Neftali Chaidez Lopez | 24040127 | Responsable de integraciones, pruebas y aseguramiento de calidad |
 
 ## Distribución de responsabilidades
 
 ### Isaac Jasiel Herrera Avila
-**Líder técnico, arquitecto y desarrollador principal del agente de IA**
+**Técnico, arquitecto y desarrollador del agente de IA**
 
 - Diseño de la arquitectura general del agente TravelAI en n8n.
 - Desarrollo y configuración del AI Agent mediante Google Gemini.
